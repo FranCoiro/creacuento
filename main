@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actividad Interactiva</title>
+    <style>
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .item, .text-box {
+            width: 150px;
+            height: 50px;
+            border: 2px dashed black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 5px;
+            cursor: pointer;
+            resize: both;
+            overflow: auto;
+        }
+        .dropzone-large {
+            width: 800px; /* Agrandamos el área de dibujo */
+            height: 600px;
+            border: 2px solid black;
+            position: relative;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            border: 2px solid black;
+        }
+        .button {
+            margin: 10px;
+            padding: 10px 20px;
+            border: 2px solid black;
+            cursor: pointer;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <img src="icono_bocina.png" alt="Instrucciones" id="playInstructions" style="cursor:pointer;">
+        <div class="container">
+            <div id="item1" class="item text-box" contenteditable="true">Personaje</div>
+            <div id="item2" class="item text-box" contenteditable="true">Primero pasa...</div>
+            <div id="item3" class="item text-box" contenteditable="true">Algo extra...</div>
+            <div id="item4" class="item text-box" contenteditable="true">Personaje</div>
+            <div id="item5" class="item text-box" contenteditable="true">Luego...</div>
+            <div id="item6" class="item text-box" contenteditable="true">Algo extra...</div>
+            <div id="item7" class="item text-box" contenteditable="true">Personaje</div>
+            <div id="item8" class="item text-box" contenteditable="true">Y después...</div>
+            <div id="item9" class="item text-box" contenteditable="true">¿Cómo termina?</div>
+        </div>
+        <div class="dropzone-large" id="dropzone">
+            <canvas id="drawingCanvas" width="800" height="600"></canvas> <!-- Aumentamos el tamaño del canvas -->
+        </div>
+        <div class="button" id="recordButton">Grábate</div>
+        <div class="button" id="saveButton">Guardar progreso</div>
+        <div class="button" id="loadButton">Cargar progreso</div>
+    </div>
+    <audio id="instructionsAudio" src="instrucciones.mp3"></audio>
+    <script>
+        document.getElementById('playInstructions').addEventListener('click', function() {
+            document.getElementById('instructionsAudio').play();
+        });
+
+        const items = document.querySelectorAll('.item');
+        const dropzone = document.getElementById('dropzone');
+
+        items.forEach(item => {
+            item.setAttribute('draggable', true);
+            item.addEventListener('dragstart', dragStart);
+        });
+
+        dropzone.addEventListener('dragover', dragOver);
+        dropzone.addEventListener('drop', drop);
+
+        function dragStart(e) {
+            e.dataTransfer.setData('text', e.target.id);
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            const id = e.dataTransfer.getData('text');
+            const draggableElement = document.getElementById(id);
+            const dropzoneRect = dropzone.getBoundingClientRect();
+            const offsetX = e.clientX - dropzoneRect.left;
+            const offsetY = e.clientY - dropzoneRect.top;
+
+            // Verificar que el elemento no se salga del área de dibujo
+            if (offsetX >= 0 && offsetY >= 0 && offsetX <= dropzone.clientWidth - draggableElement.clientWidth && offsetY <= dropzone.clientHeight - draggableElement.clientHeight) {
+                draggableElement.style.position = 'absolute';
+                draggableElement.style.top = `${offsetY}px`;
+                draggableElement.style.left = `${offsetX}px`;
+                dropzone.appendChild(draggableElement);
+            }
+        }
+
+        // Funcionalidad de dibujo en el canvas
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (drawing) {
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+        });
+
+        canvas.addEventListener('mouseout', () => {
+            drawing = false;
+        });
+
+        // Funcionalidad para guardar y cargar progreso
+        document.getElementById('saveButton').addEventListener('click', saveProgress);
+        document.getElementById('loadButton').addEventListener('click', loadProgress);
+
+        function saveProgress() {
+            const itemsData = [];
+            items.forEach(item => {
+                const rect = item.getBoundingClientRect();
+                const dropzoneRect = dropzone.getBoundingClientRect();
+                itemsData.push({
+                    id: item.id,
+                    content: item.innerHTML,
+                    width: item.style.width,
+                    height: item.style.height,
+                    top: rect.top - dropzoneRect.top,
+                    left: rect.left - dropzoneRect.left
+                });
+            });
+            const canvasData = canvas.toDataURL();
+            localStorage.setItem('itemsData', JSON.stringify(itemsData));
+            localStorage.setItem('canvasData', canvasData);
+            alert('Progreso guardado');
+        }
+
+        function loadProgress() {
+            const itemsData = JSON.parse(localStorage.getItem('itemsData'));
+            if (itemsData) {
+                itemsData.forEach(data => {
+                    const item = document.getElementById(data.id);
+                    item.innerHTML = data.content;
+                    item.style.width = data.width;
+                    item.style.height = data.height;
+                    item.style.position = 'absolute';
+                    item.style.top = `${data.top}px`;
+                    item.style.left = `${data.left}px`;
+                    dropzone.appendChild(item);
+                });
+            }
+            const canvasData = localStorage.getItem('canvasData');
+            if (canvasData) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                };
+                img.src = canvasData;
+            }
+            alert('Progreso cargado');
+        }
+
+        // Funcionalidad para grabar audio (requerirá permisos y un servidor para guardar)
+        document.getElementById('recordButton').addEventListener('click', function() {
+            alert("Funcionalidad de grabación pendiente de implementación.");
+        });
+
+    </script>
+</body>
+</html>
